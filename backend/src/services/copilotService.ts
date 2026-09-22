@@ -1,5 +1,7 @@
 import { db } from '../database.js';
 import { groqService } from './groqService.js';
+import { fileIntelligenceService } from './fileIntelligenceService.js';
+import { adaptiveDayService } from './adaptiveDayService.js';
 
 export interface CopilotAnalysisResult {
   question: string;
@@ -26,6 +28,14 @@ export const copilotService = {
   async analyzeQuestion(question: string): Promise<CopilotAnalysisResult> {
     const qLower = (question || '').toLowerCase().trim();
     const now = Date.now();
+
+    // Fetch real local filesystem intelligence overview
+    const fileStorage = fileIntelligenceService.getStorageOverview();
+    const fileDeclutter = fileIntelligenceService.getDeclutterSummary();
+    const fileDuplicates = fileIntelligenceService.getDuplicates().slice(0, 5);
+    const fileLarge = fileIntelligenceService.getLargeFiles('size', 5);
+    const fileDevProjects = fileIntelligenceService.getDeveloperProjectCleanup().slice(0, 5);
+    const fileSensitive = fileIntelligenceService.getSensitiveFiles().slice(0, 5);
 
     // Query latest telemetry record from SQLite devices table
     const row = db.prepare('SELECT * FROM devices ORDER BY id DESC LIMIT 1').get() as
@@ -132,6 +142,36 @@ export const copilotService = {
           cpuPercent: a.cpuPercent,
           memoryMb: a.ramMb,
         })),
+        fileIntelligence: {
+          storageTotal: fileStorage.totalFormatted,
+          storageUsed: fileStorage.usedFormatted,
+          storageFree: fileStorage.freeFormatted,
+          storageUsagePercent: fileStorage.usagePercent,
+          totalReclaimableStorage: fileDeclutter.totalReclaimableFormatted,
+          duplicateSpaceRecoverable: fileDeclutter.duplicateFormatted,
+          developerArtifactsReclaimable: fileDeclutter.devArtifactsFormatted,
+          oldInstallersReclaimable: fileDeclutter.installersFormatted,
+          topCategories: fileStorage.categories.slice(0, 5).map(c => `${c.category}: ${c.formattedSize} (${c.percent}%)`),
+          topLargeFiles: fileLarge.map(f => `${f.name} (${f.formattedSize}) at ${f.path}`),
+          duplicateGroupsCount: fileDuplicates.length,
+          topDeveloperProjects: fileDevProjects.map(p => `${p.projectName}: ${p.rebuildableFormatted} rebuildable build outputs`),
+          sensitiveFilesDetectedCount: fileSensitive.length,
+        },
+        adaptiveDayContext: (() => {
+          try {
+            const state = adaptiveDayService.getState();
+            return {
+              contextType: state.currentContext.contextType,
+              confidencePercent: state.currentContext.confidencePercent,
+              patternState: state.currentContext.patternState,
+              evidence: state.currentContext.evidence,
+              predictedNextContext: state.currentContext.predictedNextContext,
+              recommendations: state.currentContext.recommendations.map(r => r.title),
+            };
+          } catch {
+            return null;
+          }
+        })(),
       };
 
       const groqResult = await groqService.analyzeDeviceTelemetry(question, telemetryContext);
@@ -150,6 +190,95 @@ export const copilotService = {
     }
 
     // 2. DETERMINISTIC LOCAL REASONING FALLBACK (If Groq API key is missing or call fails)
+
+    // Adaptive Day / Routine Specific Queries
+    if (
+      qLower.includes('adaptive day') ||
+      qLower.includes('routine') ||
+      qLower.includes('context') ||
+      qLower.includes('quiet mode') ||
+      qLower.includes('focus mode') ||
+      qLower.includes('suggesting')
+    ) {
+      const state = adaptiveDayService.getState();
+      const ctx = state.currentContext;
+      const recTitles = ctx.recommendations.map((r) => r.title).join('; ');
+      const answer = `Adaptive Day currently detects your routine context as '${ctx.contextType}' with ${ctx.confidencePercent}% confidence (${ctx.patternState}). Next predicted routine: ${ctx.predictedNextContext}. Recommended actions: ${recTitles || 'None'}.`;
+      return {
+        question,
+        answer,
+        explanation: answer,
+        evidence: ctx.evidence,
+        recommendations: ctx.recommendations.map((r) => `${r.title}: ${r.description}`),
+        recommendation: ctx.recommendations[0]?.description || 'Review routine recommendations on your Dashboard.',
+        severity: 'ok',
+        timestamp: now,
+      };
+    }
+
+    // Storage / File Intelligence Specific Queries
+    if (qLower.includes('storage') || qLower.includes('file') || qLower.includes('duplicate') || qLower.includes('reclaim') || qLower.includes('build') || qLower.includes('download') || qLower.includes('clean')) {
+      if (qLower.includes('duplicate')) {
+        const dupCount = fileDuplicates.length;
+        const answer = dupCount > 0
+          ? `Found ${dupCount} exact duplicate file groups accounting for ${fileDeclutter.duplicateFormatted} of potentially recoverable storage.`
+          : 'No exact duplicate file groups detected on scanned user storage.';
+        const evidence = fileDuplicates.length > 0
+          ? fileDuplicates.map(d => `${d.files[0]?.name} (${d.files.length} copies, ${d.recoverableFormatted} recoverable)`)
+          : ['Exact SHA-256 duplicate scan: Clean'];
+        const recommendations = ['Review duplicate files in the File Intelligence page before approving cleanup.'];
+        return {
+          question,
+          answer,
+          explanation: answer,
+          evidence,
+          recommendations,
+          recommendation: recommendations[0],
+          severity: dupCount > 0 ? 'warning' : 'ok',
+          timestamp: now,
+        };
+      }
+
+      if (qLower.includes('large') || qLower.includes('big')) {
+        const topF = fileLarge[0];
+        const answer = topF
+          ? `Your largest scanned file is ${topF.name} (${topF.formattedSize}) located at ${topF.path}.`
+          : 'No large files exceeding 20 MB detected in scanned directories.';
+        const evidence = fileLarge.map(f => `${f.name}: ${f.formattedSize} (${f.category})`);
+        const recommendations = ['Sort and review large files in File Intelligence under the Large Files tab.'];
+        return {
+          question,
+          answer,
+          explanation: answer,
+          evidence,
+          recommendations,
+          recommendation: recommendations[0],
+          severity: 'ok',
+          timestamp: now,
+        };
+      }
+
+      if (qLower.includes('reclaim') || qLower.includes('declutter') || qLower.includes('space')) {
+        const answer = `You can potentially reclaim up to ${fileDeclutter.totalReclaimableFormatted} of disk space across duplicates (${fileDeclutter.duplicateFormatted}), developer build outputs (${fileDeclutter.devArtifactsFormatted}), and old installers (${fileDeclutter.installersFormatted}).`;
+        const evidence = [
+          `Total Reclaimable: ${fileDeclutter.totalReclaimableFormatted}`,
+          `Duplicate Files: ${fileDeclutter.duplicateFormatted}`,
+          `Developer Build Artifacts: ${fileDeclutter.devArtifactsFormatted}`,
+          `Old Installers: ${fileDeclutter.installersFormatted}`,
+        ];
+        const recommendations = ['Navigate to File Intelligence -> AI Digital Declutter to review cleanup suggestions safely.'];
+        return {
+          question,
+          answer,
+          explanation: answer,
+          evidence,
+          recommendations,
+          recommendation: recommendations[0],
+          severity: 'ok',
+          timestamp: now,
+        };
+      }
+    }
 
     // "Why is my device slow?"
     if (qLower.includes('slow') || qLower.includes('lag') || qLower.includes('sluggish') || qLower.includes('slowdown')) {

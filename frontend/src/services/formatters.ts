@@ -18,6 +18,31 @@ export function clockTime(timestamp: number): string {
   });
 }
 
+export function formatDateTime(val: string | number | null | undefined): string {
+  if (val === null || val === undefined || val === '') return 'Unavailable';
+  try {
+    let d: Date;
+    if (typeof val === 'number') {
+      d = new Date(val);
+    } else if (typeof val === 'string') {
+      let str = val.trim();
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(str)) {
+        str = str.replace(' ', 'T') + 'Z';
+      }
+      d = new Date(str);
+    } else {
+      d = new Date(val);
+    }
+    if (isNaN(d.getTime())) return 'Unavailable';
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(d);
+  } catch {
+    return 'Unavailable';
+  }
+}
+
 export function minutesToHuman(minutes: number | null): string {
   if (minutes === null || minutes <= 0) return 'Estimating...';
   const hrs = Math.floor(minutes / 60);

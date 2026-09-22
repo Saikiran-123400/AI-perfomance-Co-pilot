@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export type TabType = 'dashboard' | 'analyzer' | 'performance' | 'copilot' | 'history' | 'settings';
+export type TabType = 'dashboard' | 'analyzer' | 'performance' | 'copilot' | 'files' | 'adaptive' | 'discover' | 'history' | 'settings';
 
 interface Props {
   currentTab: TabType;
@@ -15,6 +15,9 @@ export function Sidebar({ currentTab, onSelectTab }: Props) {
     { id: 'analyzer', label: 'App Analyzer' },
     { id: 'performance', label: 'Performance' },
     { id: 'copilot', label: 'Copilot' },
+    { id: 'files', label: 'File Intelligence' },
+    { id: 'adaptive', label: 'Adaptive Intelligence' },
+    { id: 'discover', label: 'Discover' },
     { id: 'history', label: 'History' },
   ];
 

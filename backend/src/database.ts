@@ -139,6 +139,18 @@ export function initDatabase() {
       temp_end REAL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS adaptive_day_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      context_type TEXT NOT NULL,
+      confidence_level REAL NOT NULL,
+      evidence_json TEXT NOT NULL,
+      predicted_next TEXT,
+      recommendations_json TEXT,
+      action_applied TEXT,
+      dismissed INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Seed app profiles if table is empty

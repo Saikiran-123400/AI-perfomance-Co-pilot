@@ -4,6 +4,9 @@ import { Dashboard } from './components/Dashboard';
 import { AppAnalyzerPage } from './components/AppAnalyzerPage';
 import { PerformancePage } from './components/PerformancePage';
 import { CopilotPage } from './components/CopilotPage';
+import { FileIntelligencePage } from './components/FileIntelligencePage';
+import { AdaptiveIntelligencePage } from './components/AdaptiveIntelligencePage';
+import { DiscoverPage } from './components/DiscoverPage';
 import { HistoryPage } from './components/HistoryPage';
 import { SettingsPage } from './components/SettingsPage';
 import { OnboardingFlow } from './components/OnboardingFlow';
@@ -62,6 +65,12 @@ export default function App() {
               <PerformancePage currentTelemetry={currentTelemetry} />
             ) : currentTab === 'copilot' ? (
               <CopilotPage />
+            ) : currentTab === 'files' ? (
+              <FileIntelligencePage />
+            ) : currentTab === 'adaptive' ? (
+              <AdaptiveIntelligencePage />
+            ) : currentTab === 'discover' ? (
+              <DiscoverPage />
             ) : currentTab === 'history' ? (
               <HistoryPage />
             ) : (

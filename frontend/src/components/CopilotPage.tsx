@@ -19,13 +19,14 @@ export function CopilotPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const suggestedQuestions = [
+    'What routine context am I in right now?',
+    'Why are you suggesting quiet or focus mode?',
+    'Explain my Adaptive Day routine pattern',
     'Why is my device slow?',
     "What's using my RAM?",
     'Why is my temperature increasing?',
     'Is an application affecting performance?',
-    'Is my network causing the problem?',
     'Why is my battery draining?',
-    'What should I do right now?',
   ];
 
   useEffect(() => {

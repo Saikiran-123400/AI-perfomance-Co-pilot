@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppSessionAnalysis, ImpactRating } from '../types';
 import { apiClient } from '../services/apiClient';
+import { formatDateTime } from '../services/formatters';
 
 interface SimulatedRunRecord {
   id: number;
@@ -24,6 +25,7 @@ interface SimulatedRunRecord {
 export function HistoryPage() {
   const [runs, setRuns] = useState<SimulatedRunRecord[]>([]);
   const [sessions, setSessions] = useState<AppSessionAnalysis[]>([]);
+  const [adaptiveEvents, setAdaptiveEvents] = useState<import('../types').AdaptiveDayEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,11 +35,13 @@ export function HistoryPage() {
         .then((res) => (res.ok ? res.json() : []))
         .catch(() => []),
       apiClient.getAppSessions(),
+      apiClient.getAdaptiveDayState(),
     ])
-      .then(([runsData, sessionsData]) => {
+      .then(([runsData, sessionsData, adaptiveData]) => {
         if (mounted) {
           setRuns(Array.isArray(runsData) ? runsData : []);
           setSessions(sessionsData);
+          setAdaptiveEvents(adaptiveData?.recentEvents || []);
         }
       })
       .finally(() => {
@@ -48,18 +52,6 @@ export function HistoryPage() {
       mounted = false;
     };
   }, []);
-
-  const formatDate = (isoOrMs: string | number) => {
-    try {
-      const d = new Date(isoOrMs);
-      return d.toLocaleString([], {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      });
-    } catch {
-      return String(isoOrMs);
-    }
-  };
 
   const overallBadgeBg = (impact: ImpactRating) => {
     switch (impact) {
@@ -123,7 +115,9 @@ export function HistoryPage() {
                     <td className="py-2.5 px-3 text-right font-medium text-slate-800">{sess.avgCpuPercent}%</td>
                     <td className="py-2.5 px-3 text-right font-medium text-slate-800">{sess.peakCpuPercent}%</td>
                     <td className="py-2.5 px-3 text-right font-medium text-slate-800">{Math.round(sess.avgRamMb)} MB</td>
-                    <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">{formatDate(sess.startTime)}</td>
+                    <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">
+                      {formatDateTime(sess.createdAt || sess.startTime || (sess as any).timestamp)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -175,7 +169,65 @@ export function HistoryPage() {
                         {item.accuracyScore}%
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">{formatDate(item.createdAt)}</td>
+                    <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">{formatDateTime(item.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Adaptive Day Routine Log Card */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3 border-b border-slate-100 pb-2">
+          Adaptive Day Routine Event Log
+        </h3>
+
+        {loading ? (
+          <p className="py-4 text-xs text-slate-500 font-medium">Loading Adaptive Day events...</p>
+        ) : adaptiveEvents.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-500 bg-slate-50 rounded border border-dashed border-slate-200">
+            No Adaptive Day routine events recorded yet. Pattern detection runs continuously in the background.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
+                  <th className="py-2 px-3">Context Type</th>
+                  <th className="py-2 px-3">Confidence</th>
+                  <th className="py-2 px-3">Evidence Collected</th>
+                  <th className="py-2 px-3">Action / Audit</th>
+                  <th className="py-2 px-3">Date & Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {adaptiveEvents.map((evt) => (
+                  <tr key={evt.id} className="hover:bg-slate-50">
+                    <td className="py-2.5 px-3 font-semibold text-slate-900">{evt.contextType}</td>
+                    <td className="py-2.5 px-3">
+                      <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
+                        {evt.confidenceLevel}%
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600 max-w-xs truncate">
+                      {evt.evidence.join(' · ')}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {evt.dismissed ? (
+                        <span className="rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
+                          Dismissed [Not My Routine]
+                        </span>
+                      ) : evt.actionApplied ? (
+                        <span className="rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                          Applied ({evt.actionApplied})
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-[11px]">Monitored</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">{formatDateTime(evt.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>

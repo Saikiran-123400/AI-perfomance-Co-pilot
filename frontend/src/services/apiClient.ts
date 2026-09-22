@@ -1,4 +1,4 @@
-import type { AppProfile, AppImpactAnalysis, SimulationComparison, TelemetrySample, PlayStoreApp, AppSessionAnalysis, InstalledAppItem, CopilotResponse } from '../types';
+import type { AppProfile, AppImpactAnalysis, SimulationComparison, TelemetrySample, PlayStoreApp, AppSessionAnalysis, InstalledAppItem, CopilotResponse, StorageOverview, DeclutterSummary, DuplicateGroup, RedundantItem, DevProjectCleanup, FileItemInfo, SmartOrganizationPreview, SensitiveFileItem, StorageGrowthData, AdaptiveDayState } from '../types';
 import { SAMPLE_APPS } from './appImpactService';
 
 const API_BASE_URL = 'http://localhost:4000/api';
@@ -246,4 +246,227 @@ export const apiClient = {
       return null;
     }
   },
+
+  /** FILE INTELLIGENCE APIs */
+
+  async getFileStorageOverview(): Promise<StorageOverview | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/storage?t=${Date.now()}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getFileDeclutterSummary(): Promise<DeclutterSummary | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/declutter?t=${Date.now()}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async getDuplicates(): Promise<DuplicateGroup[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/duplicates?t=${Date.now()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getRedundantFiles(): Promise<RedundantItem[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/redundant?t=${Date.now()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getDeveloperProjects(): Promise<DevProjectCleanup[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/developer-projects?t=${Date.now()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getLargeFiles(sort: 'size' | 'oldest' | 'recent' = 'size'): Promise<FileItemInfo[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/large?sort=${sort}&t=${Date.now()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getOldFiles(days = 90): Promise<FileItemInfo[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/old?days=${days}&t=${Date.now()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getSmartOrganization(): Promise<SmartOrganizationPreview[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/organization?t=${Date.now()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getSensitiveFiles(): Promise<SensitiveFileItem[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/sensitive?t=${Date.now()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getStorageGrowth(): Promise<StorageGrowthData | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/growth?t=${Date.now()}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async executeFileAction(actionType: 'recycle' | 'move', targetPaths: string[], destinationPath?: string): Promise<{ success: boolean; processedCount: number; errors: string[] }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actionType, targetPaths, destinationPath }),
+      });
+      if (!res.ok) return { success: false, processedCount: 0, errors: ['Failed to execute file action'] };
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, processedCount: 0, errors: [err?.message || 'Network error'] };
+    }
+  },
+
+  async rescanFilesystem(): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/rescan`, { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async getExclusions(): Promise<string[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/exclusions`);
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
+  },
+
+  async updateExclusions(action: 'add' | 'remove', folderPath: string): Promise<string[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/files/exclusions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, folderPath }),
+      });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
+  },
+
+  /** DISCOVER APIs */
+  async getDiscoverFeed(): Promise<import('../types').DiscoverPayload | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/discover?t=${Date.now()}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  /** ADAPTIVE DAY APIs */
+  async getAdaptiveDayState(): Promise<AdaptiveDayState | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/adaptive-day?t=${Date.now()}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async dismissAdaptiveDayPattern(contextType: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/adaptive-day/dismiss-pattern`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contextType }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async applyAdaptiveDayAction(actionId: string): Promise<{ success: boolean; message: string } | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/adaptive-day/apply-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actionId }),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async updateAdaptiveDayPreferences(prefs: { isPaused?: boolean; locationPermissionEnabled?: boolean }): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/adaptive-day/preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prefs),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
 };
+
+
+

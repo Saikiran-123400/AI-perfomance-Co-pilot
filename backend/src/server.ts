@@ -7,6 +7,9 @@ import { appsRouter } from './routes/apps.js';
 import { predictionsRouter } from './routes/predictions.js';
 import { simulatedRunsRouter } from './routes/simulatedRuns.js';
 import { copilotRouter } from './routes/copilot.js';
+import { fileIntelligenceRouter } from './routes/fileIntelligence.js';
+import { discoverRouter } from './routes/discover.js';
+import { adaptiveDayRouter } from './routes/adaptiveDay.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -30,6 +33,9 @@ app.use('/api/apps', appsRouter);
 app.use('/api/predictions', predictionsRouter);
 app.use('/api/simulated-runs', simulatedRunsRouter);
 app.use('/api/copilot', copilotRouter);
+app.use('/api/files', fileIntelligenceRouter);
+app.use('/api/discover', discoverRouter);
+app.use('/api/adaptive-day', adaptiveDayRouter);
 
 app.get('/api', (_req, res) => {
   res.json({ status: 'ok', name: 'AI Phone Copilot API', version: '1.0.0' });

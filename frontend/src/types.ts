@@ -217,3 +217,247 @@ export interface CopilotResponse {
   severity?: 'ok' | 'warning' | 'critical' | 'unavailable';
   timestamp: number;
 }
+
+/** File Intelligence Domain Types */
+
+export interface StorageCategoryDistribution {
+  category: 'Applications' | 'Documents' | 'Images' | 'Videos' | 'Downloads' | 'Projects/Development' | 'Archives' | 'Other';
+  bytes: number;
+  formattedSize: string;
+  fileCount: number;
+  percent: number;
+}
+
+export interface StorageOverview {
+  totalBytes: number;
+  freeBytes: number;
+  usedBytes: number;
+  usagePercent: number;
+  totalFormatted: string;
+  freeFormatted: string;
+  usedFormatted: string;
+  categories: StorageCategoryDistribution[];
+}
+
+export interface DeclutterSummary {
+  duplicateBytes: number;
+  duplicateFormatted: string;
+  installersBytes: number;
+  installersFormatted: string;
+  devArtifactsBytes: number;
+  devArtifactsFormatted: string;
+  largeUnusedBytes: number;
+  largeUnusedFormatted: string;
+  tempFilesBytes: number;
+  tempFilesFormatted: string;
+  totalReclaimableBytes: number;
+  totalReclaimableFormatted: string;
+}
+
+export interface FileItemInfo {
+  name: string;
+  path: string;
+  size: number;
+  formattedSize: string;
+  modifiedDate: number;
+  modifiedFormatted: string;
+  category: string;
+  extension: string;
+}
+
+export interface DuplicateGroup {
+  groupId: string;
+  hash: string;
+  size: number;
+  formattedSize: string;
+  recoverableBytes: number;
+  recoverableFormatted: string;
+  files: FileItemInfo[];
+  isPossibleDuplicate?: boolean;
+}
+
+export interface RedundantItem {
+  id: string;
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size: number;
+  formattedSize: string;
+  category: 'Dev Artifact' | 'Old Installer' | 'Temporary File' | 'Old Archive' | 'Crash/Log File';
+  projectName?: string;
+  reason: string;
+}
+
+export interface DevProjectCleanup {
+  projectName: string;
+  projectPath: string;
+  sourceBytes: number;
+  sourceFormatted: string;
+  generatedBytes: number;
+  generatedFormatted: string;
+  rebuildableBytes: number;
+  rebuildableFormatted: string;
+  artifacts: RedundantItem[];
+}
+
+export interface SmartOrganizationPreview {
+  id: string;
+  fileName: string;
+  currentPath: string;
+  suggestedPath: string;
+  suggestedCategory: string;
+  size: number;
+  formattedSize: string;
+}
+
+export interface SensitiveFileItem {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  formattedSize: string;
+  modifiedFormatted: string;
+  reason: string;
+}
+
+export interface StorageSnapshot {
+  date: string;
+  timestamp: number;
+  usedGb: number;
+}
+
+export interface StorageGrowthData {
+  history: StorageSnapshot[];
+  weeklyGrowthGb: number;
+  pressureLevel: 'normal' | 'moderate' | 'high';
+  pressureMessage: string;
+}
+
+/** Discover Page Domain Types */
+
+export interface DiscoverVideoItem {
+  id: string;
+  title: string;
+  channelTitle: string;
+  thumbnailUrl: string;
+  publishedAt?: string;
+  duration?: string;
+  url: string;
+  topic: string;
+}
+
+export interface SoftwareUpdateItem {
+  id: string;
+  name: string;
+  installedVersion: string;
+  latestVersion: string;
+  status: 'Update available' | 'Up to date';
+  officialUrl: string;
+  publisher?: string;
+}
+
+export interface HardwareRecommendationItem {
+  id: string;
+  component: 'RAM' | 'Storage' | 'Cooling' | 'GPU' | 'System';
+  title: string;
+  reason: string;
+  recommendation: string;
+  urgency: 'low' | 'medium' | 'high';
+  url?: string;
+}
+
+export interface LearningResourceItem {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  source: string;
+  url: string;
+  actionText: string;
+}
+
+export interface PerformanceResourceItem {
+  id: string;
+  title: string;
+  detectedCondition: string;
+  description: string;
+  source: string;
+  url: string;
+}
+
+export interface DiscoverPayload {
+  personalizedSummary: string;
+  activeContextSummary: {
+    activeApps: string[];
+    detectedStack: string;
+    cpuPercent: number;
+    ramPercent: number;
+    temperatureC: number | null;
+  };
+  youtubeState: {
+    available: boolean;
+    message?: string;
+    videos: DiscoverVideoItem[];
+  };
+  softwareUpdates: SoftwareUpdateItem[];
+  hardwareRecommendations: HardwareRecommendationItem[];
+  learningResources: LearningResourceItem[];
+  performanceResources: PerformanceResourceItem[];
+  timestamp: number;
+}
+export type AdaptiveContextType =
+  | 'Development'
+  | 'Gaming'
+  | 'Study'
+  | 'College'
+  | 'Travel'
+  | 'Reading'
+  | 'Sleep'
+  | 'General';
+
+export interface AdaptiveDayRecommendation {
+  id: string;
+  title: string;
+  description: string;
+  actionText: string;
+  actionType: 'focus' | 'battery' | 'gpu' | 'display' | 'general';
+  isApplied: boolean;
+  isAvailableOnDevice: boolean;
+}
+
+export interface AdaptiveDayContext {
+  contextType: AdaptiveContextType;
+  confidencePercent: number;
+  patternState: 'Recurring pattern detected' | 'Still learning your routine';
+  repetitionCount: number;
+  evidence: string[];
+  predictedNextContext: string;
+  predictedTimeRemainingMinutes: number;
+  recommendations: AdaptiveDayRecommendation[];
+}
+
+export interface AdaptiveDayPreferences {
+  isPaused: boolean;
+  locationPermissionEnabled: boolean;
+  actionMode: 'Ask before applying changes' | 'Automatic';
+  dismissedContexts: string[];
+}
+
+export interface AdaptiveDayEvent {
+  id: number;
+  contextType: string;
+  confidenceLevel: number;
+  evidence: string[];
+  predictedNext?: string;
+  recommendations?: string[];
+  actionApplied?: string;
+  dismissed: boolean;
+  createdAt: string;
+}
+
+export interface AdaptiveDayState {
+  currentContext: AdaptiveDayContext;
+  preferences: AdaptiveDayPreferences;
+  recentEvents: AdaptiveDayEvent[];
+  timestamp: number;
+}

@@ -188,21 +188,32 @@ appsRouter.get('/sessions', (_req, res) => {
       created_at: string;
     }>;
 
-    const sessions = rows.map((r) => ({
-      id: r.id,
-      appName: r.app_name,
-      pid: r.pid || undefined,
-      durationSeconds: r.duration_seconds,
-      avgCpuPercent: r.avg_cpu,
-      peakCpuPercent: r.peak_cpu,
-      avgRamMb: r.avg_ram_mb,
-      peakRamMb: r.peak_ram_mb,
-      batteryStart: r.battery_start,
-      batteryEnd: r.battery_end,
-      tempStart: r.temp_start,
-      tempEnd: r.temp_end,
-      createdAt: r.created_at,
-    }));
+    const sessions = rows.map((r) => {
+      let isoCreatedAt = r.created_at;
+      if (typeof r.created_at === 'string') {
+        let str = r.created_at.trim();
+        if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(str)) {
+          str = str.replace(' ', 'T') + 'Z';
+        }
+        isoCreatedAt = str;
+      }
+      return {
+        id: r.id,
+        appName: r.app_name,
+        pid: r.pid || undefined,
+        durationSeconds: r.duration_seconds,
+        avgCpuPercent: r.avg_cpu,
+        peakCpuPercent: r.peak_cpu,
+        avgRamMb: r.avg_ram_mb,
+        peakRamMb: r.peak_ram_mb,
+        batteryStart: r.battery_start,
+        batteryEnd: r.battery_end,
+        tempStart: r.temp_start,
+        tempEnd: r.temp_end,
+        createdAt: isoCreatedAt,
+        startTime: isoCreatedAt,
+      };
+    });
 
     return res.json(sessions);
   } catch {
@@ -212,17 +223,21 @@ appsRouter.get('/sessions', (_req, res) => {
 
 // POST /api/apps/sessions — Save a completed app session analysis
 appsRouter.post('/sessions', (req, res) => {
-  const { appName, pid, durationSeconds, avgCpuPercent, peakCpuPercent, avgRamMb, peakRamMb, batteryStart, batteryEnd, tempStart, tempEnd } = req.body;
+  const { appName, pid, durationSeconds, avgCpuPercent, peakCpuPercent, avgRamMb, peakRamMb, batteryStart, batteryEnd, tempStart, tempEnd, startTime, createdAt } = req.body;
 
   if (!appName || typeof durationSeconds !== 'number') {
     return res.status(400).json({ error: 'Invalid app session data' });
   }
 
+  const sessionCreatedAt = typeof createdAt === 'string' && createdAt.trim().length > 0
+    ? createdAt
+    : (typeof startTime === 'number' ? new Date(startTime).toISOString() : new Date().toISOString());
+
   try {
     const stmt = db.prepare(`
       INSERT INTO app_sessions (
-        app_name, pid, duration_seconds, avg_cpu, peak_cpu, avg_ram_mb, peak_ram_mb, battery_start, battery_end, temp_start, temp_end
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        app_name, pid, duration_seconds, avg_cpu, peak_cpu, avg_ram_mb, peak_ram_mb, battery_start, battery_end, temp_start, temp_end, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const info = stmt.run(
@@ -236,7 +251,8 @@ appsRouter.post('/sessions', (req, res) => {
       batteryStart ?? null,
       batteryEnd ?? null,
       tempStart ?? null,
-      tempEnd ?? null
+      tempEnd ?? null,
+      sessionCreatedAt
     );
 
     return res.status(201).json({ success: true, id: Number(info.lastInsertRowid) });
