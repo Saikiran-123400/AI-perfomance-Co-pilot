@@ -3,8 +3,10 @@ import {
   bandFor,
   celsius,
   clockTime,
+  latencyMs,
   minutesToHuman,
   percent,
+  throughputKbps,
 } from '../services/formatters';
 import { HealthScore } from './HealthScore';
 import { MetricCard } from './MetricCard';
@@ -15,7 +17,7 @@ export function Dashboard() {
 
   if (loading && !data) {
     return (
-      <div className="py-12 text-center text-slate-500">
+      <div className="py-12 text-center text-xs font-medium text-slate-500">
         Reading device telemetry…
       </div>
     );
@@ -24,11 +26,11 @@ export function Dashboard() {
   if (error && !data) {
     return (
       <div className="rounded-lg border border-rose-200 bg-rose-50 p-6">
-        <p className="font-medium text-rose-700">No telemetry available</p>
-        <p className="mt-1 text-sm text-rose-600">{error}</p>
+        <p className="font-semibold text-rose-700 text-sm">No telemetry available</p>
+        <p className="mt-1 text-xs text-rose-600">{error}</p>
         <button
           onClick={refresh}
-          className="mt-3 rounded bg-rose-600 px-3 py-1.5 text-sm text-white hover:bg-rose-700"
+          className="mt-3 rounded bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
         >
           Try again
         </button>
@@ -43,148 +45,153 @@ export function Dashboard() {
   const activeAppsList = latest.activeApplications ?? latest.activeApps;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
+      {/* Header */}
       <header className="flex flex-wrap items-end justify-between gap-2 border-b border-slate-200 pb-3">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-slate-900">Device Performance Overview</h2>
-            {source === 'Windows Laptop' || source === 'Windows PC' || source === 'Windows' ? (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                🟢 Live Laptop Data
-              </span>
-            ) : source === 'Android Device' ? (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                🟢 Live Device Data (Android)
-              </span>
-            ) : source === 'iOS Device' ? (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                🟢 Live Device Data (iOS)
-              </span>
-            ) : source.startsWith('Live') ? (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                🟢 Live Laptop Data
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-slate-900">Device Status & Monitoring</h2>
+            {source.includes('Windows') || source.startsWith('Live') ? (
+              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+                Live Device Telemetry
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800 border border-amber-300">
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                🟡 Simulator (Fallback)
+              <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700 border border-amber-200">
+                Simulator (Fallback)
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 mt-1">
             Data Source: <strong className="text-slate-800">{source}</strong> · Updated {clockTime(latest.timestamp)}
           </p>
         </div>
         <button
           onClick={refresh}
-          className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+          className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs"
         >
           Refresh now
         </button>
       </header>
 
+      {/* Health Score Overview */}
       <HealthScore diagnosis={data.diagnosis} prediction={data.prediction} />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <MetricCard
-          label="CPU"
-          value={percent(latest.cpuUsage)}
-          fill={latest.cpuUsage}
-          severity={bandFor('cpu', latest.cpuUsage)}
-        />
-        <MetricCard
-          label="RAM"
-          value={percent(latest.ramUsage)}
-          fill={latest.ramUsage}
-          severity={bandFor('ram', latest.ramUsage)}
-          note={latest.ramUsed && latest.ramTotal ? `${latest.ramUsed.toFixed(1)} / ${latest.ramTotal.toFixed(1)} GB` : undefined}
-        />
-        <MetricCard
-          label="Storage"
-          value={percent(latest.storageUsage)}
-          fill={latest.storageUsage}
-          severity={bandFor('storage', latest.storageUsage)}
-          note={latest.storageAvailable !== undefined && latest.storageAvailable !== null ? `${latest.storageAvailable.toFixed(1)} GB free` : undefined}
-        />
-        <MetricCard
-          label="Temperature"
-          value={latest.temperature !== null && latest.temperature !== undefined ? celsius(latest.temperature) : 'Unavailable'}
-          fill={latest.temperature !== null && latest.temperature !== undefined ? (latest.temperature / 50) * 100 : 0}
-          severity={latest.temperature !== null && latest.temperature !== undefined ? bandFor('temperature', latest.temperature) : 'ok'}
-        />
-        <MetricCard
-          label="Battery"
-          value={latest.batteryLevel !== null && latest.batteryLevel !== undefined ? percent(latest.batteryLevel) : 'Unavailable'}
-          fill={latest.batteryLevel !== null && latest.batteryLevel !== undefined ? latest.batteryLevel : 0}
-          severity={latest.batteryLevel !== null && latest.batteryLevel !== undefined ? bandFor('battery', latest.batteryLevel) : 'ok'}
-          note={latest.batteryLevel !== null && latest.batteryLevel !== undefined ? (latest.charging ? '⚡ Charging' : minutesToHuman(data.prediction.batteryMinutesRemaining)) : 'No battery sensor'}
-        />
+      {/* Metric Cards Grid */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+          Hardware Signals
+        </h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <MetricCard
+            label="CPU"
+            value={percent(latest.cpuUsage)}
+            fill={latest.cpuUsage}
+            severity={bandFor('cpu', latest.cpuUsage)}
+          />
+          <MetricCard
+            label="Memory"
+            value={percent(latest.ramUsage)}
+            fill={latest.ramUsage}
+            severity={bandFor('ram', latest.ramUsage)}
+            note={latest.ramUsed && latest.ramTotal ? `${latest.ramUsed.toFixed(1)} / ${latest.ramTotal.toFixed(1)} GB` : undefined}
+          />
+          <MetricCard
+            label="GPU"
+            value={latest.gpuUsage !== null && latest.gpuUsage !== undefined ? percent(latest.gpuUsage) : 'Unavailable'}
+            fill={latest.gpuUsage !== null && latest.gpuUsage !== undefined ? latest.gpuUsage : 0}
+            severity={bandFor('gpu', latest.gpuUsage)}
+            note={latest.gpuVramUsed && latest.gpuVramTotal ? `VRAM: ${(latest.gpuVramUsed / 1024).toFixed(1)} / ${(latest.gpuVramTotal / 1024).toFixed(1)} GB` : 'Hardware sensor unavailable'}
+          />
+          <MetricCard
+            label="Temperature"
+            value={latest.temperature !== null && latest.temperature !== undefined ? celsius(latest.temperature) : 'Unavailable'}
+            fill={latest.temperature !== null && latest.temperature !== undefined ? (latest.temperature / 50) * 100 : 0}
+            severity={bandFor('temperature', latest.temperature)}
+            note={latest.gpuTemp !== null && latest.gpuTemp !== undefined ? `GPU: ${celsius(latest.gpuTemp)}` : undefined}
+          />
+          <MetricCard
+            label="Battery"
+            value={latest.batteryLevel !== null && latest.batteryLevel !== undefined ? percent(latest.batteryLevel) : 'Unavailable'}
+            fill={latest.batteryLevel !== null && latest.batteryLevel !== undefined ? latest.batteryLevel : 0}
+            severity={bandFor('battery', latest.batteryLevel)}
+            note={latest.batteryLevel !== null && latest.batteryLevel !== undefined ? (latest.charging ? `${latest.chargingStatus || 'Plugged / Charging'}` : minutesToHuman(data.prediction.batteryMinutesRemaining)) : 'No battery sensor'}
+          />
+          <MetricCard
+            label="Network Latency"
+            value={latest.networkLatencyMs !== null && latest.networkLatencyMs !== undefined ? latencyMs(latest.networkLatencyMs) : 'Unavailable'}
+            fill={latest.networkLatencyMs !== null && latest.networkLatencyMs !== undefined ? Math.min(100, (latest.networkLatencyMs / 200) * 100) : 0}
+            severity={bandFor('latency', latest.networkLatencyMs)}
+            note={latest.downloadKbps !== null && latest.downloadKbps !== undefined ? `Throughput: ${throughputKbps(latest.downloadKbps)}` : 'Ping measurement'}
+          />
+        </div>
       </div>
 
+      {/* Identified Issues */}
       <IssueList diagnosis={data.diagnosis} prediction={data.prediction} />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Active Applications Section */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-              <span>⚡ Active Applications</span>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+              <span>Active Applications</span>
               {Array.isArray(activeAppsList) && activeAppsList.length > 0 ? (
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                  {activeAppsList.length} processes
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                  {activeAppsList.length} running
                 </span>
               ) : null}
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Last updated: <strong className="text-slate-700">{clockTime(latest.timestamp)}</strong>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Processes currently executing on the system
             </p>
           </div>
         </div>
 
         {Array.isArray(activeAppsList) ? (
           activeAppsList.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {activeAppsList.map((app, idx) => (
-                <div
-                  key={app.pid ? `${app.name}-${app.pid}` : `${app.name}-${idx}`}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/60 p-3 hover:bg-slate-100/80 transition-colors"
-                >
-                  <div className="min-w-0 flex-1 pr-2">
-                    <div className="font-semibold text-slate-800 text-sm truncate" title={app.name}>
-                      {app.name}
-                    </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
-                      {app.pid ? `PID: ${app.pid}` : 'Active App'}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="inline-flex items-center text-xs font-semibold text-slate-700 bg-slate-200/70 px-2 py-0.5 rounded">
-                      💾 {app.ramFormatted || (app.ramMb ? (app.ramMb >= 1024 ? `${(app.ramMb / 1024).toFixed(2)} GB` : `${Math.round(app.ramMb)} MB`) : 'N/A')}
-                    </span>
-                    <span className="inline-flex items-center text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                      ⚡ {app.cpuFormatted || (app.cpuPercent !== undefined ? `${app.cpuPercent.toFixed(1)}%` : '0%')}
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
+                    <th className="py-2 px-3">Process Name</th>
+                    <th className="py-2 px-3">PID</th>
+                    <th className="py-2 px-3 text-right">Memory Usage</th>
+                    <th className="py-2 px-3 text-right">CPU Load</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {activeAppsList.map((app, idx) => (
+                    <tr
+                      key={app.pid ? `${app.name}-${app.pid}` : `${app.name}-${idx}`}
+                      className="hover:bg-slate-50/80 transition-colors"
+                    >
+                      <td className="py-2.5 px-3 font-semibold text-slate-900">{app.name}</td>
+                      <td className="py-2.5 px-3 text-slate-500 font-mono">{app.pid || 'N/A'}</td>
+                      <td className="py-2.5 px-3 text-right font-medium text-slate-800">
+                        {app.ramFormatted || (app.ramMb ? (app.ramMb >= 1024 ? `${(app.ramMb / 1024).toFixed(2)} GB` : `${Math.round(app.ramMb)} MB`) : 'N/A')}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-medium text-slate-800">
+                        {app.cpuFormatted || (app.cpuPercent !== undefined ? `${app.cpuPercent.toFixed(1)}%` : '0%')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <div className="py-6 text-center text-sm font-medium text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+            <div className="py-6 text-center text-xs font-medium text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-200">
               No active user applications detected
             </div>
           )
         ) : (
-          <div className="py-6 text-center text-sm font-medium text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+          <div className="py-6 text-center text-xs font-medium text-slate-500 bg-slate-50 rounded-lg border border-dashed border-slate-200">
             Unavailable
           </div>
         )}
       </div>
 
       {error ? (
-        <p className="text-sm text-amber-600">Showing the last good reading. {error}</p>
+        <p className="text-xs text-amber-600">Showing last available telemetry snapshot. {error}</p>
       ) : null}
     </div>
   );

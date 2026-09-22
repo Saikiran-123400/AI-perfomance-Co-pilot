@@ -7,14 +7,15 @@ import type {
   TelemetrySample,
 } from '../types';
 
-/** Thresholds live in one place so an ML engine can be compared against them. */
 const RULES = {
   cpu: { warning: 70, critical: 88 },
   ram: { warning: 78, critical: 90 },
+  gpu: { warning: 70, critical: 85 },
   storage: { warning: 85, critical: 95 },
   temperature: { warning: 40, critical: 45 },
   battery: { warning: 25, critical: 12 },
   drain: { warning: 12, critical: 20 },
+  latency: { warning: 80, critical: 150 },
 };
 
 const average = (values: number[]) =>
@@ -53,6 +54,12 @@ export const ruleBasedDiagnosisEngine: DiagnosisEngine = {
     const validTemps = window.map((s) => s.temperature).filter((t): t is number => typeof t === 'number');
     const temperature = validTemps.length > 0 ? average(validTemps) : 35;
 
+    const validGpu = window.map((s) => s.gpuUsage).filter((g): g is number => typeof g === 'number');
+    const gpu = validGpu.length > 0 ? average(validGpu) : null;
+
+    const validLatency = window.map((s) => s.networkLatencyMs).filter((l): l is number => typeof l === 'number');
+    const latency = validLatency.length > 0 ? average(validLatency) : null;
+
     const drain = average(window.map((s) => s.batteryDrainRate));
     const battery = latest.batteryLevel;
 
@@ -65,15 +72,33 @@ export const ruleBasedDiagnosisEngine: DiagnosisEngine = {
       code: 'CPU_LOAD',
       title: 'Sustained CPU load',
       detail: `CPU has averaged ${cpu.toFixed(0)}% recently.`,
-      recommendation: 'Close background apps that keep waking the processor.',
+      recommendation: 'Close heavy background workloads or apps waking the processor.',
     });
 
     add(check(ram, RULES.ram, 'above'), {
       code: 'MEMORY_PRESSURE',
       title: 'Memory pressure',
       detail: `Memory is ${ram.toFixed(0)}% full on average.`,
-      recommendation: 'Restart heavy apps to release memory.',
+      recommendation: 'Close high-memory background applications to release RAM.',
     });
+
+    if (gpu !== null) {
+      add(check(gpu, RULES.gpu, 'above'), {
+        code: 'GPU_LOAD',
+        title: 'High GPU utilization',
+        detail: `GPU is averaging ${gpu.toFixed(0)}% load.`,
+        recommendation: 'Reduce graphics quality or frame rate limit.',
+      });
+    }
+
+    if (latency !== null) {
+      add(check(latency, RULES.latency, 'above'), {
+        code: 'NETWORK_LATENCY',
+        title: 'High network latency',
+        detail: `Network latency is averaging ${latency.toFixed(0)} ms.`,
+        recommendation: 'Check network connection or switch to faster Wi-Fi / Ethernet.',
+      });
+    }
 
     add(check(storage, RULES.storage, 'above'), {
       code: 'STORAGE_PRESSURE',
@@ -87,7 +112,7 @@ export const ruleBasedDiagnosisEngine: DiagnosisEngine = {
         code: 'THERMAL',
         title: 'Running hot',
         detail: `Temperature is averaging ${temperature.toFixed(1)}°C.`,
-        recommendation: 'Take the device off the charger and out of direct sun.',
+        recommendation: 'Reduce CPU/GPU heavy workload and allow device to cool down.',
       });
     }
 

@@ -74,6 +74,15 @@ export function initDatabase() {
   try { db.exec("ALTER TABLE devices ADD COLUMN source TEXT DEFAULT 'Windows PC'"); } catch {}
   try { db.exec("ALTER TABLE devices ADD COLUMN active_apps TEXT"); } catch {}
   try { db.exec("ALTER TABLE devices ADD COLUMN installed_apps TEXT"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN gpu_usage REAL"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN gpu_vram_total REAL"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN gpu_vram_used REAL"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN gpu_temp REAL"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN network_latency REAL"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN packet_loss REAL"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN download_kbps REAL"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN upload_kbps REAL"); } catch {}
+  try { db.exec("ALTER TABLE devices ADD COLUMN charging_status TEXT"); } catch {}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS app_profiles (

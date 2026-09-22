@@ -10,6 +10,7 @@ Target Endpoint:
 import sys
 import time
 import json
+import base64
 import urllib.request
 import urllib.error
 
@@ -174,6 +175,174 @@ def collect_installed_apps():
     return sorted(list(installed.values()), key=lambda x: x["name"].lower())
 
 
+_last_net_counters = None
+_last_net_time = None
+
+
+_WIN_PS_METRICS_CODE = r'''
+$gpuSum = 0
+try {
+    $engines = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue | Where-Object { $_.UtilizationPercentage -gt 0 }
+    if ($engines) {
+        foreach ($e in $engines) {
+            $gpuSum += $e.UtilizationPercentage
+        }
+    }
+} catch {}
+
+$vramUsed = 0
+try {
+    $mems = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory -ErrorAction SilentlyContinue | Where-Object { $_.TotalCommitted -gt 0 } | Sort-Object TotalCommitted -Descending
+    if ($mems) {
+        $topMem = $mems[0]
+        $vramUsed = [math]::Round($topMem.TotalCommitted / 1MB, 1)
+    }
+} catch {}
+
+$vramTotal = 2048
+try {
+    $vid = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($vid -and $vid.AdapterRAM -and $vid.AdapterRAM -gt 0) {
+        $vramTotal = [math]::Round($vid.AdapterRAM / 1MB, 1)
+    }
+} catch {}
+
+$tempC = $null
+try {
+    $tz = Get-CimInstance Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction SilentlyContinue | Where-Object { $_.HighPrecisionTemperature -gt 0 } | Select-Object -First 1
+    if ($tz -and $tz.HighPrecisionTemperature) {
+        $tempC = [math]::Round(($tz.HighPrecisionTemperature / 10.0) - 273.15, 1)
+    }
+} catch {}
+
+if ($tempC -eq $null) {
+    try {
+        $acpi = Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Where-Object { $_.CurrentTemperature -gt 0 } | Select-Object -First 1
+        if ($acpi -and $acpi.CurrentTemperature) {
+            $tempC = [math]::Round(($acpi.CurrentTemperature / 10.0) - 273.15, 1)
+        }
+    } catch {}
+}
+
+$gpuUtil = [math]::Min(100, $gpuSum)
+
+[PSCustomObject]@{
+    gpuUtil = [double]$gpuUtil
+    vramTotalMb = [double]$vramTotal
+    vramUsedMb = [double]$vramUsed
+    tempC = if ($tempC -ne $null) { [double]$tempC } else { $null }
+} | ConvertTo-Json
+'''
+_WIN_PS_ENCODED = base64.b64encode(_WIN_PS_METRICS_CODE.encode('utf-16le')).decode('ascii')
+
+
+def collect_win_gpu_and_thermal():
+    if sys.platform != 'win32':
+        return None
+    try:
+        import subprocess
+        res = subprocess.run(
+            ['powershell', '-NoProfile', '-EncodedCommand', _WIN_PS_ENCODED],
+            capture_output=True, text=True, timeout=3
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return json.loads(res.stdout.strip())
+    except Exception:
+        pass
+    return None
+
+
+def collect_gpu_metrics():
+    gpu_util = None
+    vram_total_mb = None
+    vram_used_mb = None
+    gpu_temp = None
+
+    # 1. Try nvidia-smi CLI for NVIDIA GPUs
+    try:
+        import subprocess
+        res = subprocess.run(
+            ['nvidia-smi', '--query-gpu=utilization.gpu,memory.total,memory.used,temperature.gpu', '--format=csv,noheader,nounits'],
+            capture_output=True, text=True, timeout=1
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            parts = [p.strip() for p in res.stdout.strip().split(',')]
+            if len(parts) >= 4:
+                gpu_util = round(float(parts[0]), 1)
+                vram_total_mb = round(float(parts[1]), 1)
+                vram_used_mb = round(float(parts[2]), 1)
+                gpu_temp = round(float(parts[3]), 1)
+                return gpu_util, vram_total_mb, vram_used_mb, gpu_temp
+    except Exception:
+        pass
+
+    # 2. Fall back to Windows WMI / Performance Counters (Intel, AMD, Generic Windows GPU)
+    win_data = collect_win_gpu_and_thermal()
+    if win_data:
+        gpu_util = round(float(win_data.get('gpuUtil', 0)), 1)
+        vram_total_mb = round(float(win_data.get('vramTotalMb', 2048)), 1)
+        vram_used_mb = round(float(win_data.get('vramUsedMb', 0)), 1)
+        if win_data.get('tempC') is not None:
+            gpu_temp = round(float(win_data['tempC']), 1)
+
+    return gpu_util, vram_total_mb, vram_used_mb, gpu_temp
+
+
+def collect_network_metrics():
+    global _last_net_counters, _last_net_time
+    import subprocess
+    import socket
+    import re
+
+    latency_ms = None
+    packet_loss_percent = None
+    download_kbps = None
+    upload_kbps = None
+
+    # 1. Fast socket connection latency to 8.8.8.8:53
+    try:
+        t0 = time.time()
+        s = socket.create_connection(('8.8.8.8', 53), timeout=1)
+        latency_ms = round((time.time() - t0) * 1000, 1)
+        s.close()
+        packet_loss_percent = 0.0
+    except Exception:
+        # Fall back to ICMP ping subprocess
+        try:
+            res = subprocess.run(
+                ['ping', '-n', '1', '-w', '800', '8.8.8.8'],
+                capture_output=True, text=True, timeout=1.5
+            )
+            if res.returncode == 0 and res.stdout:
+                match = re.search(r'time[=<](\d+)ms', res.stdout, re.IGNORECASE)
+                if match:
+                    latency_ms = round(float(match.group(1)), 1)
+                if '0% loss' in res.stdout or '(0% loss)' in res.stdout:
+                    packet_loss_percent = 0.0
+                elif '100% loss' in res.stdout:
+                    packet_loss_percent = 100.0
+        except Exception:
+            pass
+
+    # 2. Real throughput delta via psutil
+    try:
+        now = time.time()
+        counters = psutil.net_io_counters()
+        if _last_net_counters is not None and _last_net_time is not None:
+            dt = now - _last_net_time
+            if dt > 0:
+                bytes_recv = counters.bytes_recv - _last_net_counters.bytes_recv
+                bytes_sent = counters.bytes_sent - _last_net_counters.bytes_sent
+                download_kbps = round((max(0, bytes_recv) / 1024) / dt, 1)
+                upload_kbps = round((max(0, bytes_sent) / 1024) / dt, 1)
+        _last_net_counters = counters
+        _last_net_time = now
+    except Exception:
+        pass
+
+    return latency_ms, packet_loss_percent, download_kbps, upload_kbps
+
+
 def collect_telemetry():
     # 1. CPU Usage % (actual measurement over 1 second interval)
     cpu_percent = psutil.cpu_percent(interval=1)
@@ -198,17 +367,26 @@ def collect_telemetry():
         storage_available_gb = None
         storage_percent = None
 
-    # 4. Battery & Charging (None/null if OS/hardware does not expose battery)
+    # 4. Battery & Charging Status
     battery_info = psutil.sensors_battery()
+    charging_status = None
+    battery_time_remaining = None
     if battery_info is not None:
         battery_level = round(battery_info.percent, 1)
         charging = bool(battery_info.power_plugged)
+        if charging:
+            charging_status = "Charging" if battery_level < 99 else "Full / Plugged"
+        else:
+            charging_status = "Discharging"
+        if battery_info.secsleft > 0:
+            battery_time_remaining = round(battery_info.secsleft / 60)
     else:
         battery_level = None
         charging = None
 
     # 5. Temperature (°C) - Only reported if a real OS thermal sensor is available
     temperature = None
+    gpu_temp = None
     if hasattr(psutil, "sensors_temperatures"):
         try:
             temps = psutil.sensors_temperatures()
@@ -224,10 +402,20 @@ def collect_telemetry():
         except Exception:
             pass
 
-    # 6. Active Applications
+    # 6. GPU Telemetry
+    gpu_util, vram_total_mb, vram_used_mb, gpu_t = collect_gpu_metrics()
+    if gpu_t is not None:
+        gpu_temp = gpu_t
+    if temperature is None and gpu_temp is not None:
+        temperature = gpu_temp
+
+    # 7. Network Telemetry
+    latency_ms, packet_loss, download_kbps, upload_kbps = collect_network_metrics()
+
+    # 8. Active Applications
     active_apps = collect_active_apps()
 
-    # 7. Installed Applications (scanned from Windows Registry)
+    # 9. Installed Applications (scanned from Windows Registry)
     installed_apps = collect_installed_apps()
 
     now_ms = int(time.time() * 1000)
@@ -242,13 +430,24 @@ def collect_telemetry():
         "ramUsed": ram_used_gb,
         "ramAvailable": ram_available_gb,
         "ram_percent": ram_percent,
+        "gpuUsage": gpu_util,
+        "gpuVramTotal": vram_total_mb,
+        "gpuVramUsed": vram_used_mb,
+        "gpuTemp": gpu_temp,
         "storageTotal": storage_total_gb,
         "storageUsed": storage_used_gb,
         "storageAvailable": storage_available_gb,
         "storage_percent": storage_percent,
         "battery": battery_level,
         "charging": charging,
+        "chargingStatus": charging_status,
+        "batteryTimeRemainingMinutes": battery_time_remaining,
         "temperature": temperature,
+        "cpuTemp": temperature,
+        "networkLatencyMs": latency_ms,
+        "packetLossPercent": packet_loss,
+        "downloadKbps": download_kbps,
+        "uploadKbps": upload_kbps,
         "activeApps": active_apps,
         "active_apps": active_apps,
         "activeApplications": active_apps,
@@ -276,8 +475,14 @@ def send_to_backend(payload):
 
 
 def main():
+    if hasattr(sys.stdout, 'reconfigure'):
+        try:
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
     print("==================================================")
-    print(" 💻 AI Phone Copilot - Real Windows Laptop Telemetry Agent")
+    print(" [AGENT] AI Phone Copilot - Real Windows Laptop Telemetry Agent")
     print("==================================================")
     print(f"Target: {BACKEND_URL}")
     print(f"Polling Interval: {INTERVAL_SECONDS}s\n")
@@ -287,7 +492,7 @@ def main():
             data = collect_telemetry()
             print(f"Telemetry activeApplications: {json.dumps(data['activeApplications'])}")
             ok, status_msg = send_to_backend(data)
-            status_icon = "✅ SUCCESS" if ok else "❌ FAIL"
+            status_icon = "[SUCCESS]" if ok else "[FAIL]"
             time_str = time.strftime("%H:%M:%S")
 
             bat_str = f"{data['battery']}%" if data['battery'] is not None else "Unavailable"
@@ -298,6 +503,8 @@ def main():
             print(f"LIVE LAPTOP TELEMETRY [{status_icon} | {time_str}]")
             print(f"CPU: {data['cpuUsage']}%")
             print(f"RAM: {data['ram_percent']}% ({data['ramUsed']}/{data['ramTotal']} GB)")
+            print(f"GPU: {data['gpuUsage']}% | VRAM: {data['gpuVramUsed']}/{data['gpuVramTotal']} MB | Temp: {data['gpuTemp']} deg C")
+            print(f"TEMP: {data['temperature']} deg C")
             print(f"STORAGE: {storage_str}")
             print(f"BATTERY: {bat_str}")
             print(f"CHARGING: {charging_str}")

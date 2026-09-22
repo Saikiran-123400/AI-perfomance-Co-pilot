@@ -333,21 +333,21 @@ export function AppAnalyzerPage({ telemetry }: Props) {
               onClick={() => setActiveTab('what_if')}
               className={`rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${
                 activeTab === 'what_if'
-                  ? 'bg-white text-indigo-700 shadow-xs'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              🔍 What If I Install?
+              What If I Install?
             </button>
             <button
               onClick={() => setActiveTab('installed')}
               className={`rounded-md px-3.5 py-1.5 text-xs font-bold transition-all ${
                 activeTab === 'installed'
-                  ? 'bg-white text-indigo-700 shadow-xs'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              ⚡ Analyze Installed App
+              Analyze Installed App
             </button>
           </div>
         </div>

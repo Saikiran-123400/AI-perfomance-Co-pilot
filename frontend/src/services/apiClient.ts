@@ -1,4 +1,4 @@
-import type { AppProfile, AppImpactAnalysis, SimulationComparison, TelemetrySample, PlayStoreApp, AppSessionAnalysis, InstalledAppItem } from '../types';
+import type { AppProfile, AppImpactAnalysis, SimulationComparison, TelemetrySample, PlayStoreApp, AppSessionAnalysis, InstalledAppItem, CopilotResponse } from '../types';
 import { SAMPLE_APPS } from './appImpactService';
 
 const API_BASE_URL = 'http://localhost:4000/api';
@@ -44,8 +44,18 @@ export const apiClient = {
         storageUsed: typeof data.storageUsed === 'number' ? data.storageUsed : null,
         storageAvailable: storageAvail,
         temperature: typeof data.temperature === 'number' ? data.temperature : null,
+        cpuTemp: typeof data.cpuTemp === 'number' ? data.cpuTemp : (typeof data.temperature === 'number' ? data.temperature : null),
+        gpuUsage: typeof data.gpuUsage === 'number' ? data.gpuUsage : null,
+        gpuVramTotal: typeof data.gpuVramTotal === 'number' ? data.gpuVramTotal : null,
+        gpuVramUsed: typeof data.gpuVramUsed === 'number' ? data.gpuVramUsed : null,
+        gpuTemp: typeof data.gpuTemp === 'number' ? data.gpuTemp : null,
+        networkLatencyMs: typeof data.networkLatencyMs === 'number' ? data.networkLatencyMs : null,
+        packetLossPercent: typeof data.packetLossPercent === 'number' ? data.packetLossPercent : null,
+        downloadKbps: typeof data.downloadKbps === 'number' ? data.downloadKbps : null,
+        uploadKbps: typeof data.uploadKbps === 'number' ? data.uploadKbps : null,
         batteryLevel: typeof data.battery === 'number' ? data.battery : null,
         charging: typeof data.charging === 'boolean' ? data.charging : null,
+        chargingStatus: typeof data.chargingStatus === 'string' ? data.chargingStatus : null,
         batteryDrainRate: 8,
         source: data.source || data.platform || 'Simulator (Fallback)',
         platform: data.platform || data.source || 'Simulator (Fallback)',
@@ -219,6 +229,21 @@ export const apiClient = {
       return Array.isArray(data) ? data : [];
     } catch {
       return [];
+    }
+  },
+
+  /** Ask Performance Copilot deterministic reasoning engine */
+  async askCopilot(question: string): Promise<CopilotResponse | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/copilot/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
     }
   },
 };

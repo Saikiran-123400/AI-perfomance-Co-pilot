@@ -9,16 +9,20 @@ interface MetricCardProps {
 }
 
 export function MetricCard({ label, value, fill, severity, note }: MetricCardProps) {
+  const isUnavailable = severity === 'unavailable' || value === 'Unavailable';
+
   const severityColors = {
     ok: 'bg-emerald-500',
     warning: 'bg-amber-500',
     critical: 'bg-rose-500',
+    unavailable: 'bg-slate-200',
   };
 
   const badgeColors = {
     ok: 'text-emerald-700 bg-emerald-100',
     warning: 'text-amber-700 bg-amber-100',
     critical: 'text-rose-700 bg-rose-100',
+    unavailable: 'text-slate-600 bg-slate-100 border border-slate-200',
   };
 
   const clampedFill = Math.min(100, Math.max(0, fill));
@@ -37,10 +41,12 @@ export function MetricCard({ label, value, fill, severity, note }: MetricCardPro
 
       <div className="mt-3">
         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-          <div
-            className={`h-full transition-all duration-500 ${severityColors[severity]}`}
-            style={{ width: `${clampedFill}%` }}
-          />
+          {!isUnavailable ? (
+            <div
+              className={`h-full transition-all duration-500 ${severityColors[severity]}`}
+              style={{ width: `${clampedFill}%` }}
+            />
+          ) : null}
         </div>
         {note ? <p className="mt-1.5 text-xs text-slate-500">{note}</p> : null}
       </div>

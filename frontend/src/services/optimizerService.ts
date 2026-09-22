@@ -5,7 +5,7 @@ export type OptimizationStatus = 'Active' | 'Resolved';
 
 export interface OptimizationItem {
   id: string;
-  metricKey: 'RAM' | 'CPU' | 'STORAGE' | 'THERMAL' | 'BATTERY' | 'DRAIN';
+  metricKey: 'RAM' | 'CPU' | 'GPU' | 'NETWORK' | 'STORAGE' | 'THERMAL' | 'BATTERY' | 'DRAIN';
   severity: OptimizationSeverity;
   title: string;
   problem: string;
@@ -24,6 +24,8 @@ export function generateOptimizations(
 
   const ramUsage = telemetry.ramUsage;
   const cpuUsage = telemetry.cpuUsage;
+  const gpuUsage = telemetry.gpuUsage;
+  const latency = telemetry.networkLatencyMs;
   const storageUsage = telemetry.storageUsage ?? 64;
   const temp = telemetry.temperature;
   const battery = telemetry.batteryLevel;
@@ -85,6 +87,42 @@ export function generateOptimizations(
       expectedBenefit: 'Lowers CPU load to baseline and conserves system energy.',
       status: resolvedIds.has(id) ? 'Resolved' : 'Active',
     });
+  }
+
+  // 2b. GPU Overload Optimization
+  if (gpuUsage !== null && gpuUsage !== undefined) {
+    if (gpuUsage >= 80) {
+      const id = 'opt-gpu-high';
+      items.push({
+        id,
+        metricKey: 'GPU',
+        severity: 'High',
+        title: 'High GPU Utilization',
+        problem: `GPU load is currently ${gpuUsage.toFixed(0)}%. Graphics processor is under heavy strain.`,
+        whyItMatters: 'Heavy GPU usage triggers thermal buildup, causes frame drops, and accelerates battery drain.',
+        recommendedAction: temp !== null && temp >= 40 ? 'Reduce graphics quality or cap frame rate to lower GPU load & heat.' : 'Reduce rendering resolution or cap frame rate.',
+        expectedBenefit: 'Cools down graphics hardware, reduces power draw, and stabilizes rendering performance.',
+        status: resolvedIds.has(id) ? 'Resolved' : 'Active',
+      });
+    }
+  }
+
+  // 2c. Network Latency Optimization
+  if (latency !== null && latency !== undefined) {
+    if (latency >= 100) {
+      const id = 'opt-net-high';
+      items.push({
+        id,
+        metricKey: 'NETWORK',
+        severity: 'High',
+        title: 'High Network Latency',
+        problem: `Current ping is ${latency.toFixed(0)} ms. Connection latency is elevated.`,
+        whyItMatters: 'High ping causes lag in online games, slow web page loads, and video buffering.',
+        recommendedAction: 'Check network connection, pause background downloads, or switch to 5GHz Wi-Fi / Ethernet.',
+        expectedBenefit: 'Restores low-latency response times for real-time applications.',
+        status: resolvedIds.has(id) ? 'Resolved' : 'Active',
+      });
+    }
   }
 
   // 3. Low Storage Optimization

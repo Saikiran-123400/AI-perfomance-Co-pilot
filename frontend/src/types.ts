@@ -36,9 +36,22 @@ export interface TelemetrySample {
   storageAvailable?: number | null;
   /** Degrees Celsius, null if unavailable. */
   temperature: number | null;
+  cpuTemp?: number | null;
+  /** Percent, 0-100, null if unavailable. */
+  gpuUsage?: number | null;
+  gpuVramTotal?: number | null;
+  gpuVramUsed?: number | null;
+  gpuTemp?: number | null;
+  /** Network telemetry. */
+  networkLatencyMs?: number | null;
+  packetLossPercent?: number | null;
+  downloadKbps?: number | null;
+  uploadKbps?: number | null;
   /** Percent, 0-100, null if unavailable. */
   batteryLevel: number | null;
   charging?: boolean | null;
+  chargingStatus?: string | null;
+  batteryTimeRemainingMinutes?: number | null;
   /** Percent per hour, positive while discharging. */
   batteryDrainRate: number;
   /** Data source: "Android Device" vs "Windows PC" vs "Simulator" */
@@ -53,7 +66,7 @@ export interface TelemetrySample {
   installedApplications?: InstalledAppItem[] | null;
 }
 
-export type Severity = 'ok' | 'warning' | 'critical';
+export type Severity = 'ok' | 'warning' | 'critical' | 'unavailable';
 
 export interface Issue {
   code: string;
@@ -192,4 +205,15 @@ export interface SimulationComparison {
   actualOverall: ImpactRating;
   accuracyScore: number;
   metricComparisons: MetricComparison[];
+}
+
+export interface CopilotResponse {
+  question: string;
+  answer?: string;
+  explanation: string;
+  evidence: string[];
+  recommendations?: string[];
+  recommendation: string;
+  severity?: 'ok' | 'warning' | 'critical' | 'unavailable';
+  timestamp: number;
 }

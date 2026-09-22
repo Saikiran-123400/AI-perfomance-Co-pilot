@@ -34,12 +34,13 @@ export const ruleBasedPredictionEngine: PredictionEngine = {
     const notes: string[] = [];
 
     const cpuSlope = slope(window.map((s) => s.cpuUsage));
+    const validGpu = window.map((s) => s.gpuUsage).filter((g): g is number => typeof g === 'number');
+    const gpuSlope = validGpu.length >= 2 ? slope(validGpu) : 0;
     const validTemps = window.map((s) => s.temperature).filter((t): t is number => typeof t === 'number');
     const tempSlope = validTemps.length >= 2 ? slope(validTemps) : 0;
 
-    // Each degree of upward heat trend costs more than a point of CPU trend.
-    // Small slopes are noise, so only a sustained rise moves the projection.
-    const projectedDrop = Math.max(0, tempSlope * 8 + cpuSlope * 0.4 - 1) * 1.5;
+    // Each degree of upward heat trend costs more than a point of CPU/GPU trend.
+    const projectedDrop = Math.max(0, tempSlope * 8 + (cpuSlope + gpuSlope) * 0.4 - 1) * 1.5;
     const predictedHealthScore = Math.round(
       Math.min(100, Math.max(0, diagnosis.healthScore - projectedDrop))
     );
@@ -52,12 +53,21 @@ export const ruleBasedPredictionEngine: PredictionEngine = {
         ? Math.round((latest.batteryLevel / latest.batteryDrainRate) * 60)
         : null;
 
-    if (tempSlope > 0.25) notes.push('Temperature is climbing; throttling is likely if it continues.');
+    if (tempSlope > 0.25 && (cpuSlope > 0.5 || gpuSlope > 0.5)) {
+      notes.push('Thermal Pressure: Temperature climbing under CPU/GPU load; throttling & performance degradation likely.');
+    } else if (tempSlope > 0.25) {
+      notes.push('Temperature is climbing; throttling is likely if it continues.');
+    }
     if (cpuSlope > 1) notes.push('CPU load is trending up.');
+    if (gpuSlope > 1) notes.push('GPU workload is increasing.');
+
     if (batteryMinutesRemaining !== null && batteryMinutesRemaining < 90) {
       notes.push(`About ${batteryMinutesRemaining} minutes of battery left at this rate.`);
     }
-    if (notes.length === 0) notes.push('No degradation expected in the next half hour.');
+
+    notes.push('FPS telemetry unavailable');
+
+    if (notes.length === 1) notes.unshift('No degradation expected in the next half hour.');
 
     return {
       timestamp: latest.timestamp,

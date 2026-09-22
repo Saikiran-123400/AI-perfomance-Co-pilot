@@ -9,9 +9,9 @@ export function IssueList({ diagnosis }: Props) {
   const topIssue = diagnosis.issues.length > 0 ? diagnosis.issues[0] : null;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-        Current Warning & Recommendation
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+      <h3 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+        System Analysis & Recommendation
       </h3>
       {topIssue ? (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
@@ -29,13 +29,16 @@ export function IssueList({ diagnosis }: Props) {
               {topIssue.severity}
             </span>
           </div>
-          <p className="mt-1.5 text-xs text-slate-600">{topIssue.detail}</p>
-          <p className="mt-1.5 text-xs font-semibold text-indigo-700">💡 {topIssue.recommendation}</p>
+          <p className="mt-1 text-xs text-slate-600">{topIssue.detail}</p>
+          <div className="mt-2 text-xs font-medium text-slate-800 border-t border-slate-200/80 pt-2">
+            <strong className="text-slate-900">Recommendation: </strong>
+            {topIssue.recommendation}
+          </div>
         </div>
       ) : (
-        <p className="text-xs text-slate-600 font-medium">
-          ✅ No current system issues detected. All core metrics operating within optimal ranges.
-        </p>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 font-medium">
+          No current system bottlenecks detected. Hardware metrics operating within optimal parameters.
+        </div>
       )}
     </div>
   );

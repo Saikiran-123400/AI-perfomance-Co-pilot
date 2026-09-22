@@ -18,6 +18,17 @@ telemetryRouter.post('/', (req, res) => {
   const temperature = typeof req.body.temperature === 'number' ? req.body.temperature : (typeof req.body.temp === 'number' ? req.body.temp : null);
   const calculatedCpu = typeof req.body.cpuUsage === 'number' ? req.body.cpuUsage : (typeof req.body.cpu_usage === 'number' ? req.body.cpu_usage : (typeof req.body.cpu_percent === 'number' ? req.body.cpu_percent : null));
   
+  const gpuUsage = typeof req.body.gpuUsage === 'number' ? req.body.gpuUsage : (typeof req.body.gpu_usage === 'number' ? req.body.gpu_usage : null);
+  const gpuVramTotal = typeof req.body.gpuVramTotal === 'number' ? req.body.gpuVramTotal : (typeof req.body.gpu_vram_total === 'number' ? req.body.gpu_vram_total : null);
+  const gpuVramUsed = typeof req.body.gpuVramUsed === 'number' ? req.body.gpuVramUsed : (typeof req.body.gpu_vram_used === 'number' ? req.body.gpu_vram_used : null);
+  const gpuTemp = typeof req.body.gpuTemp === 'number' ? req.body.gpuTemp : (typeof req.body.gpu_temp === 'number' ? req.body.gpu_temp : null);
+
+  const networkLatency = typeof req.body.networkLatencyMs === 'number' ? req.body.networkLatencyMs : (typeof req.body.network_latency === 'number' ? req.body.network_latency : null);
+  const packetLoss = typeof req.body.packetLossPercent === 'number' ? req.body.packetLossPercent : (typeof req.body.packet_loss === 'number' ? req.body.packet_loss : null);
+  const downloadKbps = typeof req.body.downloadKbps === 'number' ? req.body.downloadKbps : (typeof req.body.download_kbps === 'number' ? req.body.download_kbps : null);
+  const uploadKbps = typeof req.body.uploadKbps === 'number' ? req.body.uploadKbps : (typeof req.body.upload_kbps === 'number' ? req.body.upload_kbps : null);
+  const chargingStatus = typeof req.body.chargingStatus === 'string' ? req.body.chargingStatus : (typeof req.body.charging_status === 'string' ? req.body.charging_status : null);
+
   const devicePlatform = req.body.platform || req.body.source || 'Windows PC';
   const dataSource = req.body.source || req.body.platform || 'Windows PC';
   const rawActiveApps = req.body.activeApplications || req.body.activeApps || req.body.active_apps;
@@ -29,8 +40,9 @@ telemetryRouter.post('/', (req, res) => {
   try {
     const stmt = db.prepare(`
       INSERT INTO devices (
-        ram_total, ram_used, ram_available, storage_total, storage_used, storage_available, battery, charging, temperature, cpu_usage, platform, source, active_apps, installed_apps
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ram_total, ram_used, ram_available, storage_total, storage_used, storage_available, battery, charging, temperature, cpu_usage, platform, source, active_apps, installed_apps,
+        gpu_usage, gpu_vram_total, gpu_vram_used, gpu_temp, network_latency, packet_loss, download_kbps, upload_kbps, charging_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const info = stmt.run(
@@ -47,10 +59,19 @@ telemetryRouter.post('/', (req, res) => {
       devicePlatform,
       dataSource,
       activeAppsStr,
-      installedAppsStr
+      installedAppsStr,
+      gpuUsage,
+      gpuVramTotal,
+      gpuVramUsed,
+      gpuTemp,
+      networkLatency,
+      packetLoss,
+      downloadKbps,
+      uploadKbps,
+      chargingStatus
     );
 
-    console.log(`[TELEMETRY RECEIVED] CPU: ${calculatedCpu}% | RAM: ${ramUsed}/${ramTotal} GB | Storage: ${storageAvailable} GB free | Battery: ${battery}% | Charging: ${charging} | Platform: ${devicePlatform}`);
+    console.log(`[TELEMETRY RECEIVED] CPU: ${calculatedCpu}% | RAM: ${ramUsed}/${ramTotal} GB | GPU: ${gpuUsage ?? 'N/A'}% | Network: ${networkLatency ?? 'N/A'}ms | Platform: ${devicePlatform}`);
 
     return res.status(201).json({
       success: true,
@@ -82,6 +103,15 @@ telemetryRouter.get('/latest', (_req, res) => {
         charging: number | null;
         temperature: number | null;
         cpu_usage: number | null;
+        gpu_usage?: number | null;
+        gpu_vram_total?: number | null;
+        gpu_vram_used?: number | null;
+        gpu_temp?: number | null;
+        network_latency?: number | null;
+        packet_loss?: number | null;
+        download_kbps?: number | null;
+        upload_kbps?: number | null;
+        charging_status?: string | null;
         platform?: string;
         source: string;
         active_apps?: string | null;
@@ -123,8 +153,18 @@ telemetryRouter.get('/latest', (_req, res) => {
     storageAvailable: row.storage_available,
     battery: row.battery,
     charging: row.charging !== null && row.charging !== undefined ? Boolean(row.charging) : null,
+    chargingStatus: row.charging_status ?? (row.charging ? 'Charging' : 'Discharging'),
     temperature: row.temperature,
+    cpuTemp: row.temperature,
     cpuUsage: row.cpu_usage,
+    gpuUsage: row.gpu_usage,
+    gpuVramTotal: row.gpu_vram_total,
+    gpuVramUsed: row.gpu_vram_used,
+    gpuTemp: row.gpu_temp,
+    networkLatencyMs: row.network_latency,
+    packetLossPercent: row.packet_loss,
+    downloadKbps: row.download_kbps,
+    uploadKbps: row.upload_kbps,
     platform: isLiveDevice ? (row.platform || row.source || 'Live Device Data') : 'Simulator (Fallback)',
     source: isLiveDevice ? (row.source || row.platform || 'Live Device Data') : 'Simulator (Fallback)',
     isLive: isLiveDevice,
@@ -161,6 +201,15 @@ telemetryRouter.get('/history', (req, res) => {
     charging: number;
     temperature: number;
     cpu_usage?: number;
+    gpu_usage?: number | null;
+    gpu_vram_total?: number | null;
+    gpu_vram_used?: number | null;
+    gpu_temp?: number | null;
+    network_latency?: number | null;
+    packet_loss?: number | null;
+    download_kbps?: number | null;
+    upload_kbps?: number | null;
+    charging_status?: string | null;
     platform?: string;
     source: string;
     created_at: string;
@@ -185,8 +234,18 @@ telemetryRouter.get('/history', (req, res) => {
       storageUsed: row.storage_used ?? (storageTot - storageAvail),
       storageAvailable: storageAvail,
       temperature: row.temperature,
+      cpuTemp: row.temperature,
+      gpuUsage: row.gpu_usage ?? null,
+      gpuVramTotal: row.gpu_vram_total ?? null,
+      gpuVramUsed: row.gpu_vram_used ?? null,
+      gpuTemp: row.gpu_temp ?? null,
+      networkLatencyMs: row.network_latency ?? null,
+      packetLossPercent: row.packet_loss ?? null,
+      downloadKbps: row.download_kbps ?? null,
+      uploadKbps: row.upload_kbps ?? null,
       batteryLevel: row.battery,
       charging: row.charging !== null && row.charging !== undefined ? Boolean(row.charging) : null,
+      chargingStatus: row.charging_status ?? null,
       batteryDrainRate: 8,
       source: sourceName,
       platform: sourceName,
